@@ -218,3 +218,4 @@ __marimo__/
 *.txt
 chrome_to_python.py
 test.py
+data/

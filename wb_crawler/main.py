@@ -1,5 +1,6 @@
 import requests
 import time
+from tqdm import tqdm
 
 SES_UID = 7959616376
 HEADERS = {
@@ -23,11 +24,10 @@ HEADERS = {
     "x-requested-with": "XMLHttpRequest",
     "x-xsrf-token": "LsZ-0i-VfJ0DGZGxzzvciquk",
 }
-#  https://weibo.com/ajax/statuses/mymblog?uid=7959616376&page=1&feature=0
 
 BASE_URL = f"https://weibo.com/ajax/statuses/mymblog"
 BASE_URL_PARAMS = {"uid": SES_UID, "page": 1, "feature": 0}
-MAX_PAGES = 40
+MAX_PAGES = 5
 
 
 def fetch_one_page(url, page, since_id):
@@ -44,21 +44,30 @@ def fetch_one_page(url, page, since_id):
     return resp.json()
 
 
+def fetch_long_text(mblogid="Q7owU4jWw"):
+    resp = requests.get(
+        "https://weibo.com/ajax/statuses/longtext",
+        params={"id": mblogid},
+        headers=HEADERS,
+    )
+    return resp.json()
+
+
 def fetch_posts():
+    posts = []
     since_id = ""
+    pbar = tqdm(total=MAX_PAGES)
 
     for i in range(1, MAX_PAGES + 1):
         result = fetch_one_page(BASE_URL, i, since_id)
         since_id = result["data"]["since_id"]
-        pass
+        posts.extend(result["data"]["list"])
+        pbar.update(1)
         time.sleep(1.2)
 
-    pass
+    pbar.close()
+    return posts
 
 
-def main():
-    fetch_posts()
-    pass
-
-
-main()
+if __name__ == "__main__":
+    fetch_long_text()
