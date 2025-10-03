@@ -1,33 +1,13 @@
 import requests
 import time
 from tqdm import tqdm
+import html
 
-SES_UID = 7959616376
-HEADERS = {
-    "accept": "application/json, text/plain, */*",
-    "accept-encoding": "gzip, deflate, br, zstd",
-    "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-    "cache-control": "no-cache",
-    "client-version": "v2.47.121",
-    "cookie": "SCF=ApxEZNQo3q7WU3nZof3eNh1g1p09VaOKAwAKfs4F9eq8sgBtO1hzbZASH84mRav_rSw1oCfkNXacwAHtnAvnNY8.; SINAGLOBAL=7043845792933.323.1740637730433; UOR=,,cloud.tencent.com; ULV=1747720793298:19:4:2:8236420129.427157.1747720793287:1747710573823; XSRF-TOKEN=LsZ-0i-VfJ0DGZGxzzvciquk; PC_TOKEN=0e04ea540e; SUB=_2A25F2knQDeRhGeFP41EX8S_KyT2IHXVmlsMYrDV8PUNbmtANLWuikW9NQREwKaHYGTzxCJurE5RJkN89TpliSsf5; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WhgDQO799mOYgqqleofqMfz5JpX5KzhUgL.FoMp1heceK2ceo22dJLoI0qLxKqLBKzL1h-LxKnL12qLBozLxKqL1KqLB-qLxKqL1h.L1KnLxK-L1hnLBK.LxKBLB.2L1--t; ALF=02_1761986176; WBPSESS=99w8i7WTwyOAgyB37DuG-cNnQkWah3jLMdBYb8NitvUf7qz9fbcrUoFf4pWp9JWhX4iljjkhumn0KHaicg4-9BQPrKTsjxjU5RDhxK4vPhjBGGhnEyvx6GekOv3BW2vowikz7esd26kbwunfjq6bzQ==",
-    "pragma": "no-cache",
-    "priority": "u=1, i",
-    "referer": "https://weibo.com/u/7959616376",
-    "sec-ch-ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "server-version": "v2025.10.02.1",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-    "x-requested-with": "XMLHttpRequest",
-    "x-xsrf-token": "LsZ-0i-VfJ0DGZGxzzvciquk",
-}
-
-BASE_URL = f"https://weibo.com/ajax/statuses/mymblog"
-BASE_URL_PARAMS = {"uid": SES_UID, "page": 1, "feature": 0}
-MAX_PAGES = 5
+from wb_crawler.concurrent_works import (
+    fetch_full_content_for_posts,
+    download_all_images_within_posts,
+)
+from wb_crawler.settings import *
 
 
 def fetch_one_page(url, page, since_id):
@@ -44,15 +24,6 @@ def fetch_one_page(url, page, since_id):
     return resp.json()
 
 
-def fetch_long_text(mblogid="Q7owU4jWw"):
-    resp = requests.get(
-        "https://weibo.com/ajax/statuses/longtext",
-        params={"id": mblogid},
-        headers=HEADERS,
-    )
-    return resp.json()
-
-
 def fetch_posts():
     posts = []
     since_id = ""
@@ -61,13 +32,25 @@ def fetch_posts():
     for i in range(1, MAX_PAGES + 1):
         result = fetch_one_page(BASE_URL, i, since_id)
         since_id = result["data"]["since_id"]
-        posts.extend(result["data"]["list"])
+        posts.extend(
+            [
+                _
+                for _ in result["data"]["list"]
+                if _["text_raw"] and "打捞" not in _["text_raw"]
+            ]
+        )
         pbar.update(1)
         time.sleep(1.2)
 
     pbar.close()
+
+    posts = fetch_full_content_for_posts(posts)
+    for i in posts:
+        i["text_raw"] = html.unescape(i["text_raw"].replace("\u200b", "")).strip()
+        i["full_content"] = html.unescape(
+            i["full_content"].replace("\u200b", "")
+        ).strip()
+
+    download_all_images_within_posts(posts)
+
     return posts
-
-
-if __name__ == "__main__":
-    fetch_long_text()
